@@ -1,0 +1,54 @@
+# Zabbix 7.0 LTS sous Docker Compose (bonus du projet)
+# Les mots de passe sont lus dans le fichier .env (voir .env.example).
+# Ports : 10061 -> 10051 pour le serveur, 8081 -> 8080 pour l'interface web,
+# car le Zabbix installé nativement utilise déjà 10051 et 80 sur la même machine.
+
+services:
+  db:
+    image: mysql:8.0
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_bin
+    environment:
+      MYSQL_DATABASE: zabbix
+      MYSQL_USER: zabbix
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  server:
+    image: zabbix/zabbix-server-mysql:ubuntu-7.0-latest
+    environment:
+      DB_SERVER_HOST: db
+      MYSQL_DATABASE: zabbix
+      MYSQL_USER: zabbix
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "10061:10051"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    image: zabbix/zabbix-web-nginx-mysql:ubuntu-7.0-latest
+    environment:
+      ZBX_SERVER_HOST: server
+      DB_SERVER_HOST: db
+      MYSQL_DATABASE: zabbix
+      MYSQL_USER: zabbix
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      PHP_TZ: Europe/Paris
+    ports:
+      - "8081:8080"
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  db-data:
